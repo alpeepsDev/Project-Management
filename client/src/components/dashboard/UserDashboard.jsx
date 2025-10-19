@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { toast } from "react-hot-toast";
 import { Card, Badge, Button } from "../ui";
 import KanbanBoard from "../kanban/KanbanBoard";
+import { ModernGanttChart } from "../gantt";
+import { CalendarView } from "../calendar";
 import TaskDetailModal from "../modals/TaskDetailModal";
 import TaskExchangeModal from "../modals/TaskExchangeModal";
 import { UserAnalytics } from "../analytics";
@@ -10,7 +12,7 @@ import { useTheme } from "../../context";
 
 const UserDashboard = ({ user }) => {
   const { isDark } = useTheme();
-  const [activeView, setActiveView] = useState("overview");
+  const [activeView, setActiveView] = useState("gantt");
   const [taskDetailModal, setTaskDetailModal] = useState({
     isOpen: false,
     task: null,
@@ -89,11 +91,11 @@ const UserDashboard = ({ user }) => {
   const allProjectTasks = safeTasks;
   const myTasks = safeTasks.filter((task) => task.assigneeId === user.id);
   const pendingTasks = allProjectTasks.filter(
-    (task) => task.status === "PENDING",
+    (task) => task.status === "PENDING"
   );
   const doneTasks = allProjectTasks.filter((task) => task.status === "DONE");
   const completedTasks = allProjectTasks.filter(
-    (task) => task.status === "COMPLETED",
+    (task) => task.status === "COMPLETED"
   );
 
   const handleTaskMove = async (taskId, newStatus) => {
@@ -115,11 +117,11 @@ const UserDashboard = ({ user }) => {
           {
             duration: 4000,
             icon: "✅",
-          },
+          }
         );
       } else {
         toast.success(
-          `Task moved to ${newStatus === "PENDING" ? "To Do" : newStatus === "IN_PROGRESS" ? "In Progress" : newStatus}`,
+          `Task moved to ${newStatus === "PENDING" ? "To Do" : newStatus === "IN_PROGRESS" ? "In Progress" : newStatus}`
         );
       }
     } catch (error) {
@@ -198,7 +200,7 @@ const UserDashboard = ({ user }) => {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full p-4 sm:p-6">
       <div className="space-y-6">
         {/* Header */}
         <div
@@ -209,7 +211,7 @@ const UserDashboard = ({ user }) => {
               <h1
                 className={`text-2xl sm:text-3xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
               >
-                Welcome back, {user.username}! 👋
+                Welcome back, {user.username}!
               </h1>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="primary">USER</Badge>
@@ -230,42 +232,65 @@ const UserDashboard = ({ user }) => {
                   onChange={(e) => handleViewChange(e.target.value)}
                   className={`w-full px-3 py-2 border ${isDark ? "border-gray-600 bg-gray-800 text-white" : "border-gray-300 bg-white text-gray-900"} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
                 >
-                  <option value="overview">📊 Overview Dashboard</option>
-                  <option value="kanban">📋 Kanban Board</option>
-                  <option value="analytics">📈 Analytics</option>
+                  <option value="gantt">Gantt Chart</option>
+                  <option value="kanban">Kanban Board</option>
+                  <option value="calendar">Calendar</option>
+                  <option value="analytics">Analytics</option>
                 </select>
               </div>
 
               {/* Desktop: Button Navigation */}
-              <div className="hidden sm:flex gap-2">
+              <div className="hidden sm:flex gap-2 flex-wrap">
                 <Button
-                  variant={activeView === "overview" ? "primary" : "outline"}
-                  onClick={() => handleViewChange("overview")}
+                  variant={activeView === "gantt" ? "primary" : "secondary"}
+                  onClick={() => handleViewChange("gantt")}
                   size="sm"
-                  className={`transition-all duration-200 ${activeView === "overview" ? "shadow-lg scale-105" : ""}`}
                 >
-                  📊 Overview
+                  Gantt Chart
                 </Button>
                 <Button
-                  variant={activeView === "kanban" ? "primary" : "outline"}
+                  variant={activeView === "kanban" ? "primary" : "secondary"}
                   onClick={() => handleViewChange("kanban")}
                   size="sm"
-                  className={`transition-all duration-200 ${activeView === "kanban" ? "shadow-lg scale-105" : "hover:scale-105"}`}
                 >
-                  📋 Kanban
+                  Kanban
                 </Button>
                 <Button
-                  variant={activeView === "analytics" ? "primary" : "outline"}
+                  variant={activeView === "calendar" ? "primary" : "secondary"}
+                  onClick={() => handleViewChange("calendar")}
+                  size="sm"
+                >
+                  Calendar
+                </Button>
+                <Button
+                  variant={activeView === "analytics" ? "primary" : "secondary"}
                   onClick={() => handleViewChange("analytics")}
                   size="sm"
-                  className={`transition-all duration-200 ${activeView === "analytics" ? "shadow-lg scale-105" : "hover:scale-105"}`}
                 >
-                  � Analytics
+                  Analytics
                 </Button>
               </div>
             </div>
           </div>
         </div>
+
+        {activeView === "gantt" && (
+          <>
+            <ModernGanttChart
+              tasks={allProjectTasks}
+              onTaskClick={handleTaskClick}
+            />
+          </>
+        )}
+
+        {activeView === "calendar" && (
+          <>
+            <CalendarView
+              tasks={allProjectTasks}
+              onTaskClick={handleTaskClick}
+            />
+          </>
+        )}
 
         {activeView === "overview" && (
           <>
@@ -534,7 +559,7 @@ const UserDashboard = ({ user }) => {
                     .filter(
                       (exchange) =>
                         exchange.receiverId === user.id &&
-                        exchange.status === "PENDING",
+                        exchange.status === "PENDING"
                     )
                     .map((exchange) => (
                       <div key={exchange.id} className="border rounded-lg p-3">
@@ -580,27 +605,6 @@ const UserDashboard = ({ user }) => {
 
         {activeView === "analytics" && (
           <>
-            {/* Analytics Header */}
-            <div
-              className={`bg-gradient-to-r ${isDark ? "from-purple-900/20 to-indigo-900/20 border-purple-700/30" : "from-purple-50 to-indigo-50 border-purple-200"} border rounded-lg p-4 mb-6`}
-            >
-              <h2
-                className={`text-xl font-bold ${isDark ? "text-purple-300" : "text-purple-900"} flex items-center gap-2`}
-              >
-                📈 Analytics Dashboard
-                <span
-                  className={`text-sm ${isDark ? "bg-purple-900/40 text-purple-200" : "bg-purple-100 text-purple-800"} px-2 py-1 rounded-full`}
-                >
-                  Active View
-                </span>
-              </h2>
-              <p
-                className={`${isDark ? "text-purple-400" : "text-purple-700"} text-sm mt-1`}
-              >
-                Track your productivity and performance metrics
-              </p>
-            </div>
-
             <UserAnalytics tasks={safeTasks} user={user} />
           </>
         )}
@@ -629,12 +633,6 @@ const UserDashboard = ({ user }) => {
                     className={`${isDark ? "text-gray-300" : "text-gray-600"}`}
                   >
                     {currentProject.description}
-                  </p>
-                  <p
-                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"} mt-1`}
-                  >
-                    Showing all project tasks ({allProjectTasks.length} total,{" "}
-                    {myTasks.length} assigned to you)
                   </p>
                 </div>
                 <div className="w-full">

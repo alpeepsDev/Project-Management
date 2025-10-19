@@ -1,4 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import pkg from "@prisma/client";
+const { PrismaClient } = pkg;
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const prisma = new PrismaClient();

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,20 +8,32 @@ import { useTheme } from "../../context";
 const projectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(100, "Name too long"),
   description: z.string().max(500, "Description too long").optional(),
+  memberIds: z.array(z.string()).optional(),
 });
 
-const CreateProjectModal = ({ isOpen, onClose, onSubmit, loading }) => {
+const CreateProjectModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  onSave,
+  loading,
+  users = [],
+}) => {
   const { isDark } = useTheme();
+  const [selectedMembers, setSelectedMembers] = useState([]);
+
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
   } = useForm({
     resolver: zodResolver(projectSchema),
     defaultValues: {
       name: "",
       description: "",
+      memberIds: [],
     },
   });
 
@@ -44,12 +56,43 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit, loading }) => {
 
   const handleFormSubmit = async (data) => {
     try {
-      await onSubmit(data);
+      // Prefer onSubmit if provided, otherwise fall back to onSave prop name
+      const submitHandler =
+        typeof onSubmit === "function"
+          ? onSubmit
+          : typeof onSave === "function"
+            ? onSave
+            : null;
+      if (!submitHandler) {
+        console.warn(
+          "CreateProjectModal: No submit handler provided (onSubmit/onSave). Skipping."
+        );
+        return;
+      }
+
+      // Include selected members in the data
+      const projectData = {
+        ...data,
+        memberIds: selectedMembers,
+      };
+
+      await submitHandler(projectData);
       reset();
+      setSelectedMembers([]);
       onClose();
     } catch (error) {
       console.error("Project creation failed:", error);
     }
+  };
+
+  const handleMemberToggle = (userId) => {
+    setSelectedMembers((prev) => {
+      const newMembers = prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId];
+      setValue("memberIds", newMembers);
+      return newMembers;
+    });
   };
 
   if (!isOpen) return null;
@@ -87,13 +130,19 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit, loading }) => {
             />
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                className={`block text-sm font-medium mb-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}
+              >
                 Description
               </label>
               <textarea
                 {...register("description")}
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  isDark
+                    ? "bg-gray-800 border-gray-600 text-white placeholder-gray-400"
+                    : "bg-white border-gray-300 text-gray-900"
+                }`}
                 placeholder="Project description (optional)"
               />
               {errors.description && (
@@ -102,6 +151,52 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit, loading }) => {
                 </p>
               )}
             </div>
+
+            {/* Member Selection */}
+            {users && users.length > 0 && (
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                >
+                  Assign Members (Optional)
+                </label>
+                <div
+                  className={`max-h-40 overflow-y-auto border rounded-md p-3 space-y-2 ${
+                    isDark
+                      ? "bg-gray-800 border-gray-600"
+                      : "bg-gray-50 border-gray-300"
+                  }`}
+                >
+                  {users.map((user) => (
+                    <label
+                      key={user.id}
+                      className="flex items-center space-x-2 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedMembers.includes(user.id)}
+                        onChange={() => handleMemberToggle(user.id)}
+                        className="rounded text-blue-600 focus:ring-blue-500"
+                      />
+                      <span
+                        className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                      >
+                        {user.name || user.username}{" "}
+                        {user.email && `(${user.email})`}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {selectedMembers.length > 0 && (
+                  <p
+                    className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                  >
+                    {selectedMembers.length} member
+                    {selectedMembers.length > 1 ? "s" : ""} selected
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-3 pt-4">
               <Button type="submit" loading={loading}>

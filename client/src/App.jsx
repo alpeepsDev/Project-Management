@@ -6,7 +6,12 @@ import {
   Navigate,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import { AuthProvider, useAuth, ThemeProvider } from "./context";
+import {
+  AuthProvider,
+  useAuth,
+  ThemeProvider,
+  NotificationProvider,
+} from "./context";
 
 // Lazy load components for better performance
 const Login = React.lazy(() => import("./pages/Login"));
@@ -136,24 +141,26 @@ function App() {
     <ThemeProvider>
       <Router>
         <AuthProvider>
-          <AppRoutes />
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: "#363636",
-                color: "#fff",
-              },
-              success: {
-                duration: 3000,
-                theme: {
-                  primary: "green",
-                  secondary: "black",
+          <NotificationProvider>
+            <AppRoutes />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: "#363636",
+                  color: "#fff",
                 },
-              },
-            }}
-          />
+                success: {
+                  duration: 3000,
+                  theme: {
+                    primary: "green",
+                    secondary: "black",
+                  },
+                },
+              }}
+            />
+          </NotificationProvider>
         </AuthProvider>
       </Router>
     </ThemeProvider>

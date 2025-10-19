@@ -388,52 +388,6 @@ const Layout = ({ user, children, onLogout }) => {
                   {sidebarOpen ? "←" : "→"}
                 </button>
               </div>
-
-              {/* Active View Indicator - Only for non-dashboard views */}
-              <div
-                className={`mb-4 ${
-                  isDark
-                    ? "bg-blue-900 border-blue-800"
-                    : "bg-blue-50 border-blue-200"
-                } border rounded-lg p-3`}
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`${
-                      isDark ? "text-blue-300" : "text-blue-600"
-                    } font-medium text-sm`}
-                  >
-                    Active View:
-                  </span>
-                  <span
-                    className={`${
-                      isDark ? "text-blue-100" : "text-blue-800"
-                    } font-bold capitalize`}
-                  >
-                    {activeView.replace("-", " ")}
-                  </span>
-                  <span
-                    className={`ml-2 px-2 py-1 ${
-                      isDark
-                        ? "bg-blue-800 text-blue-200"
-                        : "bg-blue-100 text-blue-700"
-                    } text-xs rounded-full font-medium`}
-                  >
-                    {getViewDescription(activeView)}
-                  </span>
-                  <button
-                    onClick={() => handleViewChange("dashboard")}
-                    className={`ml-auto ${
-                      isDark
-                        ? "text-blue-300 hover:text-blue-100"
-                        : "text-blue-600 hover:text-blue-800"
-                    } text-sm underline`}
-                  >
-                    ← Back to Dashboard
-                  </button>
-                </div>
-              </div>
-
               {renderContent()}
             </div>
           )}

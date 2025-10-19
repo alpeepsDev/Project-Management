@@ -850,22 +850,6 @@ const ManagerDashboard = ({ user }) => {
           {/* Analytics View */}
           {activeView === "analytics" && (
             <>
-              {/* Analytics Header */}
-              <div
-                className={`mb-6 p-4 rounded-lg shadow-sm border ${isDark ? "bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border-purple-700/30" : "bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200"}`}
-              >
-                <h2
-                  className={`text-xl font-bold ${isDark ? "text-purple-300" : "text-purple-900"} flex items-center gap-2`}
-                >
-                  📊 Manager Analytics Dashboard
-                </h2>
-                <p
-                  className={`${isDark ? "text-purple-400" : "text-purple-700"} text-sm mt-1`}
-                >
-                  Comprehensive team performance and project analytics
-                </p>
-              </div>
-
               <ManagerAnalytics
                 tasks={safeTasks}
                 projects={safeProjects}
@@ -905,7 +889,7 @@ const ManagerDashboard = ({ user }) => {
         <CreateProjectModal
           isOpen={createProjectModal.isOpen}
           onClose={() => setCreateProjectModal({ isOpen: false })}
-          onSave={handleCreateProjectSave}
+          onSubmit={handleCreateProjectSave}
           users={allUsers}
         />
 

@@ -23,6 +23,16 @@ const AddTaskModal = ({
   });
   const [loading, setLoading] = useState(false);
 
+  // Sync projectId when selectedProject changes
+  useEffect(() => {
+    if (selectedProject?.id) {
+      setFormData((prev) => ({
+        ...prev,
+        projectId: selectedProject.id,
+      }));
+    }
+  }, [selectedProject]);
+
   // Handle ESC key press
   useEffect(() => {
     const handleEscapeKey = (event) => {
@@ -150,7 +160,7 @@ const AddTaskModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20">
       {/* Glassmorphism Backdrop */}
       <div
         className="absolute inset-0 backdrop-blur-md bg-black/30"
@@ -161,15 +171,15 @@ const AddTaskModal = ({
       <div
         className={`relative ${
           isDark
-            ? "bg-gray-900/80 border-gray-700/50"
-            : "bg-white/80 border-gray-200/50"
-        } backdrop-blur-xl border rounded-lg shadow-2xl w-full max-w-md sm:max-w-lg max-h-[90vh] overflow-y-auto`}
+            ? "bg-gray-900/95 border-gray-700/50"
+            : "bg-white/95 border-gray-200/50"
+        } backdrop-blur-xl border rounded-lg shadow-2xl w-full max-w-md max-h-[75vh] overflow-y-auto`}
       >
-        <div className="p-4 sm:p-6">
+        <div className="p-4">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <h2
-              className={`text-lg sm:text-xl font-semibold ${isDark ? "text-white" : "text-gray-900"}`}
+              className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}
             >
               Create New Task
             </h2>
@@ -178,7 +188,7 @@ const AddTaskModal = ({
               className={`${isDark ? "text-gray-400 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"} transition-colors p-1`}
             >
               <svg
-                className="w-5 h-5 sm:w-6 sm:h-6"
+                className="w-5 h-5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -194,33 +204,58 @@ const AddTaskModal = ({
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Project Selection */}
-            <div>
-              <label
-                className={`block text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"} mb-1`}
-              >
-                Project *
-              </label>
-              <select
-                name="projectId"
-                value={formData.projectId}
-                onChange={handleChange}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isDark
-                    ? "bg-gray-700 border-gray-600 text-white"
-                    : "bg-white border-gray-300 text-gray-900"
-                }`}
-                required
-              >
-                <option value="">Select a project</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {/* Project Selection - Hide dropdown if specific project is selected */}
+            {selectedProject ? (
+              <div>
+                <label
+                  className={`block text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"} mb-1`}
+                >
+                  Project
+                </label>
+                <div
+                  className={`w-full px-3 py-2 border rounded-md ${
+                    isDark
+                      ? "bg-gray-700 border-gray-600 text-white"
+                      : "bg-white border-gray-300 text-gray-900"
+                  } opacity-75`}
+                >
+                  {selectedProject.name}
+                </div>
+                {/* Hidden input to maintain form data */}
+                <input
+                  type="hidden"
+                  name="projectId"
+                  value={selectedProject.id}
+                />
+              </div>
+            ) : (
+              <div>
+                <label
+                  className={`block text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"} mb-1`}
+                >
+                  Project *
+                </label>
+                <select
+                  name="projectId"
+                  value={formData.projectId}
+                  onChange={handleChange}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    isDark
+                      ? "bg-gray-700 border-gray-600 text-white"
+                      : "bg-white border-gray-300 text-gray-900"
+                  }`}
+                  required
+                >
+                  <option value="">Select a project</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Title */}
             <div>
@@ -312,33 +347,6 @@ const AddTaskModal = ({
                   by workload)
                 </p>
               )}
-              {/* Debug info - remove in production */}
-              {import.meta.env.DEV && (
-                <div
-                  className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"} mt-1 space-y-1`}
-                >
-                  <div>
-                    Debug: {getProjectUsers().length} project members found
-                  </div>
-                  <div>Selected Project ID: {formData.projectId || "None"}</div>
-                  <div>Projects available: {projects.length}</div>
-                  {formData.projectId && (
-                    <div
-                      className={`max-h-20 overflow-y-auto ${isDark ? "bg-gray-700" : "bg-gray-50"} p-2 rounded text-xs`}
-                    >
-                      <div>
-                        Project data:{" "}
-                        {JSON.stringify(
-                          projects.find((p) => p.id === formData.projectId)
-                            ?.members,
-                          null,
-                          2
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Priority */}
@@ -408,7 +416,7 @@ const AddTaskModal = ({
             </div>
 
             {/* Actions */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <div className="flex flex-col sm:flex-row gap-3 pt-3">
               <Button
                 type="submit"
                 variant="primary"

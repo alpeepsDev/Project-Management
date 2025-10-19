@@ -1,5 +1,6 @@
 // prisma/seed.js
-import { PrismaClient } from "@prisma/client";
+import pkg from "@prisma/client";
+const { PrismaClient } = pkg;
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -132,7 +133,7 @@ async function main() {
 
       if (existingUser) {
         console.log(
-          `⚠️  User ${userData.username} already exists, skipping...`,
+          `⚠️  User ${userData.username} already exists, skipping...`
         );
         createdUsers.push(existingUser);
         continue;
@@ -153,12 +154,12 @@ async function main() {
 
       createdUsers.push(user);
       console.log(
-        `✅ Created ${user.role} user: ${user.username} (${user.name})`,
+        `✅ Created ${user.role} user: ${user.username} (${user.name})`
       );
     } catch (error) {
       console.error(
         `❌ Error creating user ${userData.username}:`,
-        error.message,
+        error.message
       );
     }
   }
@@ -278,23 +279,57 @@ async function main() {
   console.log("\n🎉 Database seeding completed!");
   console.log("\n📝 Default Login Credentials (all with password123):");
   console.log(
-    "   Email: user1@example.com    | Username: john_doe      | Role: USER",
+    "   Email: user1@example.com    | Username: john_doe      | Role: USER"
   );
   console.log(
-    "   Email: user2@example.com    | Username: jane_smith    | Role: USER",
+    "   Email: user2@example.com    | Username: jane_smith    | Role: USER"
   );
   console.log(
-    "   Email: user3@example.com    | Username: demo_user     | Role: USER",
+    "   Email: user3@example.com    | Username: demo_user     | Role: USER"
   );
   console.log(
-    "   Email: user4@example.com    | Username: alex_brown    | Role: USER",
+    "   Email: user4@example.com    | Username: alex_brown    | Role: USER"
   );
   console.log(
-    "   Email: user5@example.com    | Username: emma_davis    | Role: USER",
+    "   Email: user5@example.com    | Username: emma_davis    | Role: USER"
   );
   console.log(
-    "   ... and 10 more users (user6@example.com to user15@example.com)",
+    "   ... and 10 more users (user6@example.com to user15@example.com)"
   );
+
+  // ==================== SEED RATE LIMIT CONFIGURATIONS ====================
+  console.log("\n⚙️ Seeding rate limit configurations...");
+
+  const rateLimitConfigs = [
+    {
+      role: "ADMIN",
+      limit: 1000,
+      window: 3600000, // 1 hour in milliseconds
+    },
+    {
+      role: "MANAGER",
+      limit: 500,
+      window: 3600000, // 1 hour in milliseconds
+    },
+    {
+      role: "USER",
+      limit: 200,
+      window: 3600000, // 1 hour in milliseconds
+    },
+  ];
+
+  for (const config of rateLimitConfigs) {
+    await prisma.rateLimitConfig.upsert({
+      where: { role: config.role },
+      update: config,
+      create: config,
+    });
+  }
+
+  console.log("✅ Rate limit configurations seeded successfully!");
+  console.log("   ADMIN:   1000 requests/hour");
+  console.log("   MANAGER:  500 requests/hour");
+  console.log("   USER:     200 requests/hour");
 }
 
 main()

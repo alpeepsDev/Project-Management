@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useTheme } from "../../context";
+import { NotificationBell } from "../notifications";
 
 const Header = ({ user, onLogout, onNavigateToSettings }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -132,6 +133,9 @@ const Header = ({ user, onLogout, onNavigateToSettings }) => {
               />
             </svg>
           </button>
+
+          {/* Notification Bell */}
+          <NotificationBell />
 
           {/* User Avatar and Dropdown */}
           <div className="relative" ref={dropdownRef}>

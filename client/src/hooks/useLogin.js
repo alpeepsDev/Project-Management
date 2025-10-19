@@ -34,9 +34,17 @@ export function useLogin(options = {}) {
     }
   };
 
+    const handleKeyPress = (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        onSubmit();
+      }
+    };
+
   return {
     register,
     handleSubmit,
+    handleKeyPress,
     errors,
     onSubmit,
     loading,

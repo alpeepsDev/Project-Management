@@ -18,6 +18,9 @@ export * from "./dashboard";
 // Kanban Components
 export * from "./kanban";
 
+// Gantt Components
+export * from "./gantt";
+
 // Project Components
 export * from "./projects";
 

@@ -1,479 +1,1137 @@
-import React, { useState } from "react";
-import { Card, Badge, Button, Container } from "../ui";
+import { useState, useEffect } from "react";
+import { useAdmin } from "../../hooks/useAdmin";
+import { useTheme } from "../../context";
+import {
+  Activity,
+  Users,
+  Settings,
+  TrendingUp,
+  Shield,
+  RefreshCw,
+  Sun,
+  Moon,
+  Plus,
+  Edit,
+  Trash2,
+} from "lucide-react";
+import RateLimitConfigModal from "../modals/RateLimitConfigModal";
+import Button from "../ui/Button";
 
-const AdminDashboard = ({ user }) => {
-  const [activeView, setActiveView] = useState("overview");
+const AdminDashboard = () => {
+  const { isDark, toggleTheme } = useTheme();
+  const {
+    isAdmin,
+    loading,
+    error,
+    apiStats,
+    systemHealth,
+    users,
+    rateLimits,
+    endpointLimits,
+    userLimits,
+    userActivity,
+    fetchApiStats,
+    fetchSystemHealth,
+    fetchUsers,
+    fetchRateLimits,
+    fetchEndpointLimits,
+    fetchUserLimits,
+    fetchUserActivity,
+    updateRateLimit,
+    createEndpointLimit,
+    updateEndpointLimit,
+    deleteEndpointLimit,
+    setUserLimit,
+    removeUserLimit,
+    availableEndpoints,
+    fetchAvailableEndpoints,
+  } = useAdmin();
 
-  // Show loading state if user is not available
-  if (!user) {
+  const [activeTab, setActiveTab] = useState("overview");
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  // Rate Limit Config Modal State
+  const [configModal, setConfigModal] = useState({
+    isOpen: false,
+    type: null, // 'role', 'user', or 'endpoint'
+    data: null,
+  });
+
+  // Load data on mount
+  useEffect(() => {
+    if (isAdmin) {
+      fetchApiStats();
+      fetchSystemHealth();
+      fetchUsers();
+      fetchRateLimits();
+      fetchEndpointLimits();
+      fetchUserLimits();
+      fetchUserActivity();
+      fetchAvailableEndpoints();
+    }
+  }, [
+    isAdmin,
+    fetchApiStats,
+    fetchSystemHealth,
+    fetchUsers,
+    fetchRateLimits,
+    fetchEndpointLimits,
+    fetchUserLimits,
+    fetchUserActivity,
+    fetchAvailableEndpoints,
+  ]);
+
+  // Auto-refresh overview tab every 30 seconds
+  useEffect(() => {
+    if (isAdmin && activeTab === "overview") {
+      const interval = setInterval(() => {
+        fetchApiStats();
+        fetchSystemHealth();
+        setLastUpdate(new Date());
+      }, 30000); // 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [isAdmin, activeTab, fetchApiStats, fetchSystemHealth]);
+
+  // Auto-refresh monitoring tab every 30 seconds
+  useEffect(() => {
+    if (isAdmin && activeTab === "monitoring") {
+      const interval = setInterval(() => {
+        fetchUserActivity();
+        fetchApiStats();
+        setLastUpdate(new Date());
+      }, 30000); // 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [isAdmin, activeTab, fetchUserActivity, fetchApiStats]);
+
+  // Auto-refresh rate limits tab every 30 seconds
+  useEffect(() => {
+    if (isAdmin && activeTab === "ratelimits") {
+      const interval = setInterval(() => {
+        fetchRateLimits();
+        fetchEndpointLimits();
+        fetchUserLimits();
+        setLastUpdate(new Date());
+      }, 30000); // 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [
+    isAdmin,
+    activeTab,
+    fetchRateLimits,
+    fetchEndpointLimits,
+    fetchUserLimits,
+  ]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      fetchApiStats(),
+      fetchSystemHealth(),
+      fetchUsers(),
+      fetchRateLimits(),
+      fetchEndpointLimits(),
+      fetchUserLimits(),
+      fetchUserActivity(),
+    ]);
+    setLastUpdate(new Date());
+    setRefreshing(false);
+  };
+
+  const handleSaveRateLimit = async (formData) => {
+    try {
+      if (configModal.type === "role") {
+        await updateRateLimit(formData.role, formData.limit);
+      } else if (configModal.type === "user") {
+        await setUserLimit(formData.userId, formData.limit, formData.window);
+      } else if (configModal.type === "endpoint") {
+        if (configModal.data?.id) {
+          await updateEndpointLimit(configModal.data.id, {
+            limit: formData.limit,
+            window: formData.window,
+          });
+        } else {
+          await createEndpointLimit(
+            formData.endpoint,
+            formData.method,
+            formData.limit,
+            formData.window
+          );
+        }
+      }
+      setConfigModal({ isOpen: false, type: null, data: null });
+    } catch (error) {
+      console.error("Failed to save rate limit:", error);
+    }
+  };
+
+  const handleDeleteEndpointLimit = async (id) => {
+    if (
+      window.confirm("Are you sure you want to delete this endpoint limit?")
+    ) {
+      try {
+        await deleteEndpointLimit(id);
+      } catch (error) {
+        console.error("Failed to delete endpoint limit:", error);
+      }
+    }
+  };
+
+  const handleRemoveUserLimit = async (userId) => {
+    if (
+      window.confirm(
+        "Are you sure you want to remove this user's custom rate limit?"
+      )
+    ) {
+      try {
+        await removeUserLimit(userId);
+      } catch (error) {
+        console.error("Failed to remove user limit:", error);
+      }
+    }
+  };
+
+  if (!isAdmin) {
     return (
-      <Container className="py-8">
-        <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-gray-600">Loading dashboard...</span>
-        </div>
-      </Container>
+      <div
+        className={`p-6 min-h-screen ${isDark ? "bg-gray-900" : "bg-gray-50"}`}
+      >
+        <p className={`${isDark ? "text-red-400" : "text-red-600"}`}>
+          Access Denied: Admin privileges required
+        </p>
+      </div>
     );
   }
 
-  // Mock data for admin
-  const systemStats = {
-    totalUsers: 156,
-    totalProjects: 25,
-    totalTasks: 1243,
-    totalExchanges: 89,
-    activeUsers: 89,
-    systemUptime: "99.9%",
-    storageUsed: "2.3 GB",
-    apiCalls: 12456,
-  };
-
-  const usersByRole = {
-    ADMIN: 3,
-    MODERATOR: 5,
-    MANAGER: 12,
-    USER: 136,
-  };
-
-  const recentUsers = [
-    {
-      id: "u1",
-      username: "john_new",
-      email: "john@company.com",
-      role: "USER",
-      status: "active",
-      lastLogin: "2025-09-23 14:30",
-      createdAt: "2025-09-20",
-    },
-    {
-      id: "u2",
-      username: "jane_manager",
-      email: "jane@company.com",
-      role: "MANAGER",
-      status: "active",
-      lastLogin: "2025-09-23 13:45",
-      createdAt: "2025-09-18",
-    },
-  ];
-
-  const systemAlerts = [
-    {
-      id: "a1",
-      type: "performance",
-      message: "Database query performance degraded by 15%",
-      severity: "warning",
-      timestamp: "2025-09-23 12:00",
-    },
-    {
-      id: "a2",
-      type: "security",
-      message: "Multiple failed login attempts detected",
-      severity: "high",
-      timestamp: "2025-09-23 10:30",
-    },
-  ];
-
-  const handleUserRoleChange = (userId, newRole) => {
-    console.log(`Changing user ${userId} role to ${newRole}`);
-    // Implement role change logic
-  };
-
-  const handleUserDeactivate = (userId) => {
-    console.log("Deactivating user:", userId);
-    // Implement user deactivation logic
-  };
-
   return (
-    <Container>
-      <div className="py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+    <div
+      className={`min-h-screen p-6 ${isDark ? "bg-gray-900" : "bg-gray-50"}`}
+    >
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              System Administration 🧑‍💻
+            <h1
+              className={`text-3xl font-bold flex items-center gap-2 ${isDark ? "text-white" : "text-gray-900"}`}
+            >
+              <Shield className="w-8 h-8 text-blue-600" />
+              Admin Dashboard
             </h1>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge variant="danger">ADMIN</Badge>
-              <span className="text-gray-600">
-                System Administrator - {user.username}
-              </span>
-            </div>
+            <p className={`mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              System monitoring and management
+            </p>
+            <p
+              className={`text-sm mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}
+            >
+              Last updated: {lastUpdate.toLocaleTimeString()} • Auto-refresh:
+              30s
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant={activeView === "overview" ? "primary" : "secondary"}
-              onClick={() => setActiveView("overview")}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleTheme}
+              className={`p-2 rounded-lg ${
+                isDark
+                  ? "bg-gray-800 text-yellow-400 hover:bg-gray-700"
+                  : "bg-white text-gray-700 hover:bg-gray-100"
+              } border ${isDark ? "border-gray-700" : "border-gray-200"}`}
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
-              Overview
-            </Button>
-            <Button
-              variant={activeView === "users" ? "primary" : "secondary"}
-              onClick={() => setActiveView("users")}
+              {isDark ? (
+                <Sun className="w-5 h-5" />
+              ) : (
+                <Moon className="w-5 h-5" />
+              )}
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              User Management
-            </Button>
-            <Button
-              variant={activeView === "system" ? "primary" : "secondary"}
-              onClick={() => setActiveView("system")}
-            >
-              System Config
-            </Button>
-            <Button
-              variant={activeView === "analytics" ? "primary" : "secondary"}
-              onClick={() => setActiveView("analytics")}
-            >
-              Analytics
-            </Button>
+              <RefreshCw
+                className={refreshing ? "animate-spin w-4 h-4" : "w-4 h-4"}
+              />
+              Refresh
+            </button>
           </div>
         </div>
 
-        {/* System Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card padding="sm">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                {systemStats.totalUsers}
-              </div>
-              <div className="text-sm text-gray-600">Total Users</div>
-              <div className="text-xs text-green-600">
-                {systemStats.activeUsers} active
-              </div>
-            </div>
-          </Card>
-          <Card padding="sm">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {systemStats.totalProjects}
-              </div>
-              <div className="text-sm text-gray-600">Total Projects</div>
-            </div>
-          </Card>
-          <Card padding="sm">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">
-                {systemStats.systemUptime}
-              </div>
-              <div className="text-sm text-gray-600">System Uptime</div>
-            </div>
-          </Card>
-          <Card padding="sm">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                {systemStats.apiCalls.toLocaleString()}
-              </div>
-              <div className="text-sm text-gray-600">API Calls Today</div>
-            </div>
-          </Card>
+        {error && (
+          <div
+            className={`px-4 py-3 rounded-lg mb-6 ${
+              isDark
+                ? "bg-red-900/50 border border-red-800 text-red-200"
+                : "bg-red-100 border border-red-400 text-red-700"
+            }`}
+          >
+            <p>{error}</p>
+          </div>
+        )}
+
+        <div className="flex gap-2 mb-6">
+          {[
+            { id: "overview", label: "Overview", icon: Activity },
+            { id: "monitoring", label: "API Monitoring", icon: TrendingUp },
+            { id: "ratelimits", label: "Rate Limits", icon: Settings },
+            { id: "users", label: "User Management", icon: Users },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                activeTab === tab.id
+                  ? "bg-blue-600 text-white"
+                  : isDark
+                    ? "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                    : "bg-white text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Overview Dashboard */}
-        {activeView === "overview" && (
-          <div className="space-y-6">
-            {/* System Alerts */}
-            <Card
-              title="System Alerts"
-              subtitle="Critical system notifications"
-            >
-              <div className="space-y-3">
-                {systemAlerts.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400">
-                    <div className="text-3xl mb-2">✅</div>
-                    <p>No system alerts</p>
-                  </div>
-                ) : (
-                  systemAlerts.map((alert) => (
-                    <div
-                      key={alert.id}
-                      className={`p-3 rounded-lg border ${
-                        alert.severity === "high"
-                          ? "border-red-200 bg-red-50"
-                          : alert.severity === "warning"
-                            ? "border-yellow-200 bg-yellow-50"
-                            : "border-gray-200 bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge
-                              variant={
-                                alert.severity === "high"
-                                  ? "danger"
-                                  : alert.severity === "warning"
-                                    ? "warning"
-                                    : "default"
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className={`mt-4 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              Loading...
+            </p>
+          </div>
+        ) : (
+          <>
+            {activeTab === "overview" && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div
+                  className={`rounded-lg shadow p-6 transition-all duration-300 ${
+                    isDark ? "bg-gray-800" : "bg-white"
+                  }`}
+                >
+                  <p
+                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    Total Requests
+                  </p>
+                  <p
+                    className={`text-3xl font-bold mt-1 transition-all duration-500 ${
+                      isDark ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    {apiStats?.totalRequests?.toLocaleString() || "0"}
+                  </p>
+                  <p className="text-green-600 text-sm mt-1 transition-all duration-500">
+                    {apiStats?.requestsToday || 0} today
+                  </p>
+                </div>
+                <div
+                  className={`rounded-lg shadow p-6 transition-all duration-300 ${
+                    isDark ? "bg-gray-800" : "bg-white"
+                  }`}
+                >
+                  <p
+                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    Avg Response Time
+                  </p>
+                  <p
+                    className={`text-3xl font-bold mt-1 transition-all duration-500 ${
+                      isDark ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    {apiStats?.averageResponseTime || 0}
+                    <span className="text-lg">ms</span>
+                  </p>
+                </div>
+                <div
+                  className={`rounded-lg shadow p-6 transition-all duration-300 ${
+                    isDark ? "bg-gray-800" : "bg-white"
+                  }`}
+                >
+                  <p
+                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    Error Rate
+                  </p>
+                  <p
+                    className={`text-3xl font-bold mt-1 transition-all duration-500 ${
+                      isDark ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    {apiStats?.errorRate || 0}%
+                  </p>
+                </div>
+                <div
+                  className={`rounded-lg shadow p-6 transition-all duration-300 ${
+                    isDark ? "bg-gray-800" : "bg-white"
+                  }`}
+                >
+                  <p
+                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    System Status
+                  </p>
+                  <p
+                    className={`text-2xl font-bold mt-1 capitalize transition-all duration-500 ${
+                      isDark ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    {systemHealth?.status || "Unknown"}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "monitoring" && (
+              <div className="space-y-6">
+                {/* Top Endpoints */}
+                <div
+                  className={`rounded-lg shadow p-6 ${isDark ? "bg-gray-800" : "bg-white"}`}
+                >
+                  <h3
+                    className={`text-lg font-semibold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+                  >
+                    Top Endpoints
+                  </h3>
+                  {apiStats?.topEndpoints?.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead
+                          className={isDark ? "bg-gray-700" : "bg-gray-50"}
+                        >
+                          <tr>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Endpoint
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Requests
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Avg Time
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody
+                          className={`divide-y ${isDark ? "divide-gray-700" : "divide-gray-200"}`}
+                        >
+                          {apiStats.topEndpoints.map((endpoint, idx) => (
+                            <tr
+                              key={idx}
+                              className={
+                                isDark
+                                  ? "hover:bg-gray-700"
+                                  : "hover:bg-gray-50"
                               }
                             >
-                              {alert.severity.toUpperCase()}
-                            </Badge>
-                            <span className="text-sm text-gray-600">
-                              {alert.type}
-                            </span>
-                          </div>
-                          <p className="font-medium">{alert.message}</p>
-                          <p className="text-sm text-gray-500">
-                            {alert.timestamp}
-                          </p>
-                        </div>
-                        <Button size="sm" variant="secondary">
-                          Resolve
-                        </Button>
-                      </div>
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-200" : "text-gray-900"}`}
+                              >
+                                {endpoint.endpoint}
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                              >
+                                {endpoint.count.toLocaleString()}
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                              >
+                                {endpoint.avgTime}ms
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ))
-                )}
-              </div>
-            </Card>
-
-            {/* User Distribution */}
-            <Card
-              title="User Role Distribution"
-              subtitle="Current user roles in the system"
-            >
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {Object.entries(usersByRole).map(([role, count]) => (
-                  <div key={role} className="text-center p-4 border rounded-lg">
-                    <div
-                      className={`text-2xl font-bold ${
-                        role === "ADMIN"
-                          ? "text-red-600"
-                          : role === "MODERATOR"
-                            ? "text-yellow-600"
-                            : role === "MANAGER"
-                              ? "text-green-600"
-                              : "text-blue-600"
-                      }`}
+                  ) : (
+                    <p
+                      className={`text-center py-4 ${isDark ? "text-gray-500" : "text-gray-500"}`}
                     >
-                      {count}
-                    </div>
-                    <div className="text-sm text-gray-600">{role}</div>
-                  </div>
-                ))}
-              </div>
-            </Card>
+                      No API data available yet. Data will appear as requests
+                      are made.
+                    </p>
+                  )}
+                </div>
 
-            {/* System Performance */}
-            <Card title="System Performance" subtitle="Current system metrics">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <h4 className="font-medium mb-2">Storage Usage</h4>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>Used: {systemStats.storageUsed}</span>
-                    <span>23%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full"
-                      style={{ width: "23%" }}
-                    ></div>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-medium mb-2">CPU Usage</h4>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>Current</span>
-                    <span>45%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-green-500 h-2 rounded-full"
-                      style={{ width: "45%" }}
-                    ></div>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-medium mb-2">Memory Usage</h4>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>Current</span>
-                    <span>67%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-yellow-500 h-2 rounded-full"
-                      style={{ width: "67%" }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* User Management */}
-        {activeView === "users" && (
-          <div className="space-y-6">
-            <Card
-              title="User Management"
-              subtitle="Manage system users and their roles"
-            >
-              <div className="space-y-4">
-                {recentUsers.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
+                {/* User Activity */}
+                <div
+                  className={`rounded-lg shadow p-6 ${isDark ? "bg-gray-800" : "bg-white"}`}
+                >
+                  <h3
+                    className={`text-lg font-semibold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="font-medium text-blue-600">
-                            {user.username.charAt(0).toUpperCase()}
-                          </span>
+                    User Activity (Last 24h)
+                  </h3>
+                  {userActivity?.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead
+                          className={isDark ? "bg-gray-700" : "bg-gray-50"}
+                        >
+                          <tr>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Username
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Email
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Role
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Requests
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Rate Limit
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Usage
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody
+                          className={`divide-y ${isDark ? "divide-gray-700" : "divide-gray-200"}`}
+                        >
+                          {userActivity.map((user) => (
+                            <tr
+                              key={user.userId}
+                              className={
+                                isDark
+                                  ? "hover:bg-gray-700"
+                                  : "hover:bg-gray-50"
+                              }
+                            >
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-200" : "text-gray-900"}`}
+                              >
+                                {user.username}
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                              >
+                                {user.email}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`px-2 py-1 text-xs rounded-full ${
+                                    user.role === "ADMIN"
+                                      ? "bg-purple-100 text-purple-800"
+                                      : user.role === "MANAGER"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : "bg-gray-100 text-gray-800"
+                                  }`}
+                                >
+                                  {user.role}
+                                </span>
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                              >
+                                {user.requestCount}
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                              >
+                                {user.rateLimit}/hr
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={`w-24 rounded-full h-2 ${
+                                      isDark ? "bg-gray-700" : "bg-gray-200"
+                                    }`}
+                                  >
+                                    <div
+                                      className={`h-2 rounded-full ${
+                                        parseFloat(user.percentage) > 90
+                                          ? "bg-red-600"
+                                          : parseFloat(user.percentage) > 75
+                                            ? "bg-yellow-600"
+                                            : "bg-green-600"
+                                      }`}
+                                      style={{
+                                        width: `${Math.min(
+                                          parseFloat(user.percentage),
+                                          100
+                                        )}%`,
+                                      }}
+                                    ></div>
+                                  </div>
+                                  <span
+                                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                                  >
+                                    {user.percentage}%
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p
+                      className={`text-center py-4 ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                    >
+                      No user activity in the last 24 hours.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "ratelimits" && (
+              <div className="space-y-6">
+                {/* Per-Role Limits */}
+                <div
+                  className={`rounded-lg shadow p-6 ${isDark ? "bg-gray-800" : "bg-white"}`}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3
+                      className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}
+                    >
+                      Per-Role Rate Limits
+                    </h3>
+                  </div>
+                  {rateLimits?.length > 0 ? (
+                    <div className="space-y-4">
+                      {rateLimits.map((config) => (
+                        <div
+                          key={config.role}
+                          className={`border rounded-lg p-4 ${
+                            isDark ? "border-gray-700" : "border-gray-200"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                    config.role === "ADMIN"
+                                      ? "bg-purple-100 text-purple-800"
+                                      : config.role === "MANAGER"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : "bg-gray-100 text-gray-800"
+                                  }`}
+                                >
+                                  {config.role}
+                                </span>
+                                <span
+                                  className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
+                                >
+                                  {config.limit}
+                                </span>
+                                <span
+                                  className={
+                                    isDark ? "text-gray-400" : "text-gray-600"
+                                  }
+                                >
+                                  requests/hour
+                                </span>
+                              </div>
+                              <div className="mt-2">
+                                <div
+                                  className={`flex justify-between text-sm mb-1 ${
+                                    isDark ? "text-gray-400" : "text-gray-600"
+                                  }`}
+                                >
+                                  <span>Current Usage</span>
+                                  <span>
+                                    {config.currentUsage || 0} / {config.limit}
+                                  </span>
+                                </div>
+                                <div
+                                  className={`w-full rounded-full h-2 ${
+                                    isDark ? "bg-gray-700" : "bg-gray-200"
+                                  }`}
+                                >
+                                  <div
+                                    className={`h-2 rounded-full ${
+                                      parseFloat(config.percentage || 0) > 90
+                                        ? "bg-red-600"
+                                        : parseFloat(config.percentage || 0) >
+                                            75
+                                          ? "bg-yellow-600"
+                                          : "bg-green-600"
+                                    }`}
+                                    style={{
+                                      width: `${Math.min(
+                                        parseFloat(config.percentage || 0),
+                                        100
+                                      )}%`,
+                                    }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setConfigModal({
+                                  isOpen: true,
+                                  type: "role",
+                                  data: config,
+                                })
+                              }
+                              className="ml-4"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-medium">{user.username}</h4>
-                          <p className="text-sm text-gray-600">{user.email}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <Badge
-                          variant={
-                            user.role === "ADMIN"
-                              ? "danger"
-                              : user.role === "MODERATOR"
-                                ? "warning"
-                                : user.role === "MANAGER"
-                                  ? "success"
-                                  : "primary"
+                      ))}
+                    </div>
+                  ) : (
+                    <p
+                      className={`text-center py-4 ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                    >
+                      No rate limit configurations found.
+                    </p>
+                  )}
+                </div>
+
+                {/* Per-User Limits */}
+                <div
+                  className={`rounded-lg shadow p-6 ${isDark ? "bg-gray-800" : "bg-white"}`}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3
+                      className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}
+                    >
+                      Per-User Rate Limits
+                    </h3>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() =>
+                        setConfigModal({
+                          isOpen: true,
+                          type: "user",
+                          data: null,
+                        })
+                      }
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Set User Limit
+                    </Button>
+                  </div>
+                  {userLimits?.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead
+                          className={isDark ? "bg-gray-700" : "bg-gray-50"}
+                        >
+                          <tr>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              User
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Limit
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Window
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody
+                          className={`divide-y ${isDark ? "divide-gray-700" : "divide-gray-200"}`}
+                        >
+                          {userLimits.map((limit) => (
+                            <tr
+                              key={limit.userId}
+                              className={
+                                isDark
+                                  ? "hover:bg-gray-700"
+                                  : "hover:bg-gray-50"
+                              }
+                            >
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-200" : "text-gray-900"}`}
+                              >
+                                {limit.user?.username || "Unknown"}
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                              >
+                                {limit.limit} req
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                              >
+                                {limit.window}s
+                              </td>
+                              <td className="px-4 py-3">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleRemoveUserLimit(limit.userId)
+                                  }
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p
+                      className={`text-center py-4 ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                    >
+                      No user-specific rate limits configured.
+                    </p>
+                  )}
+                </div>
+
+                {/* Endpoint Throttling */}
+                <div
+                  className={`rounded-lg shadow p-6 ${isDark ? "bg-gray-800" : "bg-white"}`}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3
+                      className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}
+                    >
+                      Endpoint Throttling
+                    </h3>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() =>
+                        setConfigModal({
+                          isOpen: true,
+                          type: "endpoint",
+                          data: null,
+                        })
+                      }
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Configure Endpoint
+                    </Button>
+                  </div>
+                  {endpointLimits?.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead
+                          className={isDark ? "bg-gray-700" : "bg-gray-50"}
+                        >
+                          <tr>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Endpoint
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Method
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Limit
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Usage
+                            </th>
+                            <th
+                              className={`px-4 py-2 text-left text-sm font-medium ${
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              }`}
+                            >
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody
+                          className={`divide-y ${isDark ? "divide-gray-700" : "divide-gray-200"}`}
+                        >
+                          {endpointLimits.map((limit) => (
+                            <tr
+                              key={limit.id}
+                              className={
+                                isDark
+                                  ? "hover:bg-gray-700"
+                                  : "hover:bg-gray-50"
+                              }
+                            >
+                              <td
+                                className={`px-4 py-3 text-sm font-mono ${isDark ? "text-gray-200" : "text-gray-900"}`}
+                              >
+                                {limit.endpoint}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`px-2 py-1 text-xs rounded-full ${
+                                    limit.method === "*"
+                                      ? "bg-purple-100 text-purple-800"
+                                      : "bg-blue-100 text-blue-800"
+                                  }`}
+                                >
+                                  {limit.method}
+                                </span>
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                              >
+                                {limit.limit}/{limit.window}s
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={`w-20 rounded-full h-2 ${
+                                      isDark ? "bg-gray-700" : "bg-gray-200"
+                                    }`}
+                                  >
+                                    <div
+                                      className={`h-2 rounded-full ${
+                                        parseFloat(limit.percentage || 0) > 90
+                                          ? "bg-red-600"
+                                          : parseFloat(limit.percentage || 0) >
+                                              75
+                                            ? "bg-yellow-600"
+                                            : "bg-green-600"
+                                      }`}
+                                      style={{
+                                        width: `${Math.min(
+                                          parseFloat(limit.percentage || 0),
+                                          100
+                                        )}%`,
+                                      }}
+                                    ></div>
+                                  </div>
+                                  <span
+                                    className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                                  >
+                                    {limit.percentage || 0}%
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      setConfigModal({
+                                        isOpen: true,
+                                        type: "endpoint",
+                                        data: limit,
+                                      })
+                                    }
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleDeleteEndpointLimit(limit.id)
+                                    }
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p
+                      className={`text-center py-4 ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                    >
+                      No endpoint throttling configured.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "users" && (
+              <div
+                className={`rounded-lg shadow overflow-hidden ${isDark ? "bg-gray-800" : "bg-white"}`}
+              >
+                <div className="p-6">
+                  <h3
+                    className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}
+                  >
+                    All Users
+                  </h3>
+                  <p
+                    className={`text-sm mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    Total users: {users?.length || 0}
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead className={isDark ? "bg-gray-700" : "bg-gray-50"}>
+                      <tr>
+                        <th
+                          className={`px-6 py-3 text-left text-sm font-medium ${
+                            isDark ? "text-gray-300" : "text-gray-600"
+                          }`}
+                        >
+                          Username
+                        </th>
+                        <th
+                          className={`px-6 py-3 text-left text-sm font-medium ${
+                            isDark ? "text-gray-300" : "text-gray-600"
+                          }`}
+                        >
+                          Email
+                        </th>
+                        <th
+                          className={`px-6 py-3 text-left text-sm font-medium ${
+                            isDark ? "text-gray-300" : "text-gray-600"
+                          }`}
+                        >
+                          Role
+                        </th>
+                        <th
+                          className={`px-6 py-3 text-left text-sm font-medium ${
+                            isDark ? "text-gray-300" : "text-gray-600"
+                          }`}
+                        >
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody
+                      className={`divide-y ${isDark ? "divide-gray-700" : "divide-gray-200"}`}
+                    >
+                      {users?.map((user) => (
+                        <tr
+                          key={user.id}
+                          className={
+                            isDark ? "hover:bg-gray-700" : "hover:bg-gray-50"
                           }
                         >
-                          {user.role}
-                        </Badge>
-                        <span>Last login: {user.lastLogin}</span>
-                        <span>Joined: {user.createdAt}</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <select
-                        className="px-3 py-1 border rounded text-sm"
-                        defaultValue={user.role}
-                        onChange={(e) =>
-                          handleUserRoleChange(user.id, e.target.value)
-                        }
-                      >
-                        <option value="USER">User</option>
-                        <option value="MANAGER">Manager</option>
-                        <option value="MODERATOR">Moderator</option>
-                        <option value="ADMIN">Admin</option>
-                      </select>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => handleUserDeactivate(user.id)}
-                      >
-                        Deactivate
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* System Configuration */}
-        {activeView === "system" && (
-          <Card
-            title="System Configuration"
-            subtitle="Configure system-wide settings"
-          >
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="font-medium mb-4">API Settings</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">API Rate Limiting</span>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="sr-only peer"
-                          defaultChecked
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                      </label>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">API Versioning</span>
-                      <select className="px-3 py-1 border rounded text-sm">
-                        <option>v1.0</option>
-                        <option>v1.1</option>
-                        <option>v2.0 (beta)</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-medium mb-4">Security Settings</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Two-Factor Authentication</span>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" className="sr-only peer" />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                      </label>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Session Timeout (hours)</span>
-                      <input
-                        type="number"
-                        className="w-20 px-2 py-1 border rounded text-sm"
-                        defaultValue="24"
-                        min="1"
-                        max="168"
-                      />
-                    </div>
-                  </div>
+                          <td
+                            className={`px-6 py-4 text-sm ${isDark ? "text-gray-200" : "text-gray-900"}`}
+                          >
+                            {user.username}
+                          </td>
+                          <td
+                            className={`px-6 py-4 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                          >
+                            {user.email}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full ${
+                                user.isActive
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {user.isActive ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-
-              <div className="pt-6 border-t">
-                <Button variant="primary">Save Configuration</Button>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Analytics */}
-        {activeView === "analytics" && (
-          <Card
-            title="System Analytics"
-            subtitle="Comprehensive system usage analytics"
-          >
-            <div className="text-center py-12 text-gray-400">
-              <div className="text-6xl mb-4">📊</div>
-              <h3 className="text-xl font-medium text-gray-900 mb-2">
-                Advanced Analytics Dashboard
-              </h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Detailed analytics and reporting features would be implemented
-                here with charts and graphs
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
-                <div className="p-4 border rounded-lg">
-                  <div className="font-medium">User Growth</div>
-                  <div className="text-sm text-gray-600">
-                    Monthly user registration trends
-                  </div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <div className="font-medium">Project Analytics</div>
-                  <div className="text-sm text-gray-600">
-                    Project completion rates and timelines
-                  </div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <div className="font-medium">System Performance</div>
-                  <div className="text-sm text-gray-600">
-                    Server metrics and optimization insights
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
+            )}
+          </>
         )}
       </div>
-    </Container>
+
+      {/* Rate Limit Config Modal */}
+      <RateLimitConfigModal
+        isOpen={configModal.isOpen}
+        onClose={() =>
+          setConfigModal({ isOpen: false, type: null, data: null })
+        }
+        type={configModal.type}
+        onSave={handleSaveRateLimit}
+        initialData={configModal.data}
+        users={users}
+        endpoints={availableEndpoints}
+      />
+    </div>
   );
 };
 

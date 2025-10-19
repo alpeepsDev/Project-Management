@@ -1,5 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import pkg from "@prisma/client";
+const { PrismaClient } = pkg;
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { createNotification } from "./notification.controller.js";
 
 const prisma = new PrismaClient();
 
@@ -226,6 +228,9 @@ export const updateTask = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
 
+  // Extract changeNote if provided (for logging/notifications)
+  const { changeNote, ...taskUpdates } = updates;
+
   const task = await prisma.task.findUnique({
     where: { id },
     include: {
@@ -257,11 +262,18 @@ export const updateTask = asyncHandler(async (req, res) => {
     });
   }
 
+  // Log change note if provided (for future audit trail)
+  if (changeNote) {
+    console.log(
+      `📝 Change requested for task ${id} by ${req.user.username}: ${changeNote}`
+    );
+  }
+
   const updatedTask = await prisma.task.update({
     where: { id },
     data: {
-      ...updates,
-      dueDate: updates.dueDate ? new Date(updates.dueDate) : undefined,
+      ...taskUpdates,
+      dueDate: taskUpdates.dueDate ? new Date(taskUpdates.dueDate) : undefined,
       updatedAt: new Date(),
     },
     include: {
@@ -284,10 +296,48 @@ export const updateTask = asyncHandler(async (req, res) => {
         select: {
           id: true,
           name: true,
+          managerId: true,
         },
       },
     },
   });
+
+  // Get Socket.IO instance for real-time notifications
+  const io = req.app.get("io");
+
+  // Create notification for task assignee if changes were requested
+  if (
+    changeNote &&
+    updatedTask.assigneeId &&
+    updatedTask.assigneeId !== req.user.id
+  ) {
+    await createNotification({
+      userId: updatedTask.assigneeId,
+      type: "TASK_CHANGES_REQUESTED",
+      title: "Changes Requested",
+      message: `Changes requested for task "${updatedTask.title}": ${changeNote}`,
+      taskId: updatedTask.id,
+      projectId: updatedTask.projectId,
+      io, // Pass Socket.IO instance for real-time emission
+    });
+  }
+
+  // Create notification for general task updates (if not change request)
+  if (
+    !changeNote &&
+    updatedTask.assigneeId &&
+    updatedTask.assigneeId !== req.user.id
+  ) {
+    await createNotification({
+      userId: updatedTask.assigneeId,
+      type: "TASK_UPDATED",
+      title: "Task Updated",
+      message: `Task "${updatedTask.title}" has been updated`,
+      taskId: updatedTask.id,
+      projectId: updatedTask.projectId,
+      io, // Pass Socket.IO instance for real-time emission
+    });
+  }
 
   res.json({
     success: true,
@@ -734,7 +784,7 @@ export const getManagerStats = asyncHandler(async (req, res) => {
 
   const totalTeamMembers = projects.reduce(
     (sum, project) => sum + project._count.members,
-    0,
+    0
   );
 
   res.status(200).json({

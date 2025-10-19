@@ -8,9 +8,15 @@ const Login = () => {
   const { isDark } = useTheme();
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { register, handleSubmit, errors, onSubmit, loading, error } = useLogin(
-    { rememberMe },
-  );
+  const {
+    register,
+    handleSubmit,
+    handleKeyPress,
+    errors,
+    onSubmit,
+    loading,
+    error,
+  } = useLogin({ rememberMe });
 
   return (
     <div
@@ -47,7 +53,11 @@ const Login = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form
+            onSubmit={handleSubmit(onSubmit)}
+            onKeyDown={handleKeyPress(onSubmit)}
+            className="space-y-6"
+          >
             <div>
               <label
                 htmlFor="email"
